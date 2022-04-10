@@ -1,0 +1,36 @@
+model:
+  name: 'osnet_x1_0'
+  pretrained: True
+
+data:
+  type: 'image'
+  sources: ['dolphins']
+  targets: ['dolphins']
+  height: 256
+  width: 512
+  combineall: False
+  transforms: ['random_flip']
+  save_dir: 'log/custom_osnet_x1_0_dolphins_softmax_cosinelr_512_body'
+
+loss:
+  name: 'softmax'
+  softmax:
+    label_smooth: True
+
+train:
+  optim: 'amsgrad'
+  lr: 0.0015
+  max_epoch: 150
+  batch_size: 12
+  fixbase_epoch: 10
+  open_layers: ['classifier']
+  lr_scheduler: 'single_step'
+  stepsize: [60]
+
+test:
+  batch_size: 16
+  dist_metric: 'cosine'
+  normalize_feature: False
+  evaluate: False
+  eval_freq: 5
+  rerank: False
