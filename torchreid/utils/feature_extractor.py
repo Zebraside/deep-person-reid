@@ -64,15 +64,19 @@ class FeatureExtractor(object):
         pixel_mean=[0.485, 0.456, 0.406],
         pixel_std=[0.229, 0.224, 0.225],
         pixel_norm=True,
+        model_kwargs = {},
         device='cuda',
         verbose=True
     ):
         # Build model
+        model_kwargs['model_name'] = model_name
+        model_kwargs['input_size'] = image_size
+        model_kwargs['pretrained'] = not (model_path and check_isfile(model_path))
+        model_kwargs['use_gpu']=device.startswith('cuda')
+
         model = build_model(
-            model_name,
             num_classes=1,
-            pretrained=not (model_path and check_isfile(model_path)),
-            use_gpu=device.startswith('cuda')
+            **model_kwargs
         )
         model.eval()
 
