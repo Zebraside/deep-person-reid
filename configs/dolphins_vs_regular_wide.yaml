@@ -24,11 +24,12 @@ loss:
 train:
   optim: 'amsgrad'
   lr: 0.0015
-  max_epoch: 100
+  max_epoch: 150
   batch_size: 64
   fixbase_epoch: 5
   open_layers: ['classifier', 'fc']
-  lr_scheduler: 'onecycle'
+  lr_scheduler: 'single_step'
+  stepsize: [60]
 
 test:
   batch_size: 16
