@@ -2,6 +2,7 @@ model:
   name: 'osnet_x0_25'
   pretrained: True
   feature_dim: 256
+  pooling_type: 'conv'
 
 data:
   type: 'image'
@@ -11,7 +12,7 @@ data:
   width: 256
   combineall: False
   transforms: ['random_flip', 'color_jitter']
-  save_dir: 'log/custom_osnet_x0_25_dolphins_softmax_256_onecycle_id_sampler_ams'
+  save_dir: 'log/custom_osnet_x0_25_dolphins_softmax_256_onecycle_id_sampler_ams_conv'
 
 sampler:
   train_sampler: 'RandomIdentitySampler'
@@ -27,7 +28,7 @@ train:
   max_epoch: 75
   batch_size: 64
   fixbase_epoch: 5
-  open_layers: ['classifier']
+  open_layers: ['classifier', 'fc', 'global_avgpool']
   lr_scheduler: 'onecycle'
 
 test:

@@ -277,6 +277,16 @@ class OSBlock(nn.Module):
         return F.relu(out)
 
 
+class AvgMaxPool(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.max_pool = nn.AdaptiveMaxPool2d(1)
+
+    def forward(self, x):
+        return 0.5 * (self.avg_pool(x) + self.max_pool(x))
+
+
 ##########
 # Network architecture
 ##########
@@ -296,9 +306,11 @@ class OSNet(nn.Module):
         layers,
         channels,
         feature_dim=512,
-        IN_first=False,
+        in_first=False,
         loss='softmax',
+        input_size=(256, 128),
         IN=False,
+        pooling_type='avg',
         **kwargs
     ):
         super(OSNet, self).__init__()
@@ -334,9 +346,21 @@ class OSNet(nn.Module):
             reduce_spatial_size=False
         )
         self.conv5 = Conv1x1(channels[3], channels[3])
-        self.global_avgpool = nn.AdaptiveAvgPool2d(1)
+        self.feature_scales = (4, 8, 16, 16)
 
-        if IN_first:
+        if 'conv' in pooling_type:
+            kernel_size = (input_size[0] // self.feature_scales[-1], input_size[1] // self.feature_scales[-1])
+            self.global_avgpool = nn.Conv2d(channels[3], channels[3], kernel_size, groups=channels[3])
+        elif 'avg' in pooling_type:
+            self.global_avgpool = nn.AdaptiveAvgPool2d(1)
+        elif 'max' in pooling_type:
+            self.global_avgpool = nn.AdaptiveMaxPool2d(1)
+        elif 'max' in pooling_type and 'avg' in pooling_type:
+            self.global_avgpool = AvgMaxPool()
+        else:
+            raise ValueError('Incorrect pooling type')
+
+        if in_first:
             self.in_first = nn.InstanceNorm2d(3, affine=True)
             self.conv1 = ConvLayer(3, channels[0], 7, stride=2, padding=3, IN=self.use_IN_first)
 

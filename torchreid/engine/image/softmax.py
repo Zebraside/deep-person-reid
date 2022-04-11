@@ -77,7 +77,8 @@ class ImageSoftmaxEngine(Engine):
                 label_smooth=label_smooth
             )
         elif loss == 'am_softmax':
-            self.criterion = AMSoftmaxLoss(label_smooth=label_smooth)
+            self.criterion = AMSoftmaxLoss(label_smooth=label_smooth,
+                                           use_gpu=self.use_gpu)
 
 
     def forward_backward(self, data):

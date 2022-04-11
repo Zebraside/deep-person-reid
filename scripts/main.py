@@ -13,7 +13,7 @@ from torchreid.utils import (
 
 from default_config import (
     imagedata_kwargs, optimizer_kwargs, videodata_kwargs, engine_run_kwargs,
-    get_default_config, lr_scheduler_kwargs
+    get_default_config, lr_scheduler_kwargs, model_kwargs
 )
 
 
@@ -154,12 +154,8 @@ def main():
 
     print('Building model: {}'.format(cfg.model.name))
     model = torchreid.models.build_model(
-        name=cfg.model.name,
         num_classes=datamanager.num_train_pids,
-        loss=cfg.loss.name,
-        pretrained=cfg.model.pretrained,
-        use_gpu=cfg.use_gpu,
-        feature_dim=cfg.model.feature_dim
+        **model_kwargs(cfg)
     )
     num_params, flops = compute_model_complexity(
         model, (1, 3, cfg.data.height, cfg.data.width)

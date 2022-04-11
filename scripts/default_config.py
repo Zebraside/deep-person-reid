@@ -11,6 +11,8 @@ def get_default_config():
     cfg.model.load_weights = '' # path to model weights
     cfg.model.resume = '' # path to checkpoint for resume training
     cfg.model.feature_dim = 512
+    cfg.model.in_first = False
+    cfg.model.pooling_type = 'avg'
 
     # data
     cfg.data = CN()
@@ -180,6 +182,19 @@ def optimizer_kwargs(cfg):
         'staged_lr': cfg.train.staged_lr,
         'new_layers': cfg.train.new_layers,
         'base_lr_mult': cfg.train.base_lr_mult
+    }
+
+
+def model_kwargs(cfg):
+    return {
+        'name': cfg.model.name,
+        'loss': cfg.loss.name,
+        'pretrained': cfg.model.pretrained,
+        'use_gpu': cfg.use_gpu,
+        'feature_dim': cfg.model.feature_dim,
+        'in_first': cfg.model.in_first,
+        'pooling_type': cfg.model.pooling_type,
+        'input_size': (cfg.data.height, cfg.data.width)
     }
 
 
