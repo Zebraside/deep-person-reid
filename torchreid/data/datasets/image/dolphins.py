@@ -28,15 +28,15 @@ class Dolphins(ImageDataset):
             self.dataset_dir, self.train_dir
         )
 
-        self.train_ann_file = osp.join(self.dataset_dir, "train_right_1.csv")
-        self.test_ann_file = osp.join(self.dataset_dir, "test_right_1.csv")
-        self.gallery_ann_file = osp.join(self.dataset_dir, "gallery_right_1.csv")
+        self.train_ann_file = osp.join(self.dataset_dir, "train_right.csv")
+        self.test_ann_file = osp.join(self.dataset_dir, "test_right.csv")
+        self.gallery_ann_file = osp.join(self.dataset_dir, "gallery_right.csv")
 
         required_files = [
-            self.dataset_dir, 
-            self.train_dir, 
-            self.query_dir, 
-            self.gallery_dir, 
+            self.dataset_dir,
+            self.train_dir,
+            self.query_dir,
+            self.gallery_dir,
             self.train_ann_file,
             self.test_ann_file
         ]
