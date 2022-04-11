@@ -20,7 +20,8 @@ __image_datasets = {
     'prid': PRID,
     'cuhk02': CUHK02,
     'university1652': University1652,
-    'cuhksysu': CUHKSYSU
+    'cuhksysu': CUHKSYSU,
+    'dolphins' : Dolphins   
 }
 
 __video_datasets = {
