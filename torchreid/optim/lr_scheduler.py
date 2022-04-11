@@ -1,11 +1,13 @@
 from __future__ import print_function, absolute_import
 import torch
+from torch import optim
 
-AVAI_SCH = ['single_step', 'multi_step', 'cosine']
+
+AVAI_SCH = ['single_step', 'multi_step', 'cosine', 'onecycle']
 
 
 def build_lr_scheduler(
-    optimizer, lr_scheduler='single_step', stepsize=1, gamma=0.1, max_epoch=1
+    optimizer, lr_scheduler='single_step', stepsize=1, gamma=0.1, max_epoch=1, lr=0.1
 ):
     """A function wrapper for building a learning rate scheduler.
 
@@ -59,6 +61,11 @@ def build_lr_scheduler(
         scheduler = torch.optim.lr_scheduler.MultiStepLR(
             optimizer, milestones=stepsize, gamma=gamma
         )
+
+    elif lr_scheduler == 'onecycle':
+        scheduler = optim.lr_scheduler.OneCycleLR(optimizer, max_lr=lr, steps_per_epoch=1,
+                                                  epochs=int(max_epoch), pct_start=0.3, final_div_factor=100,
+                                                  div_factor=100)
 
     elif lr_scheduler == 'cosine':
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(

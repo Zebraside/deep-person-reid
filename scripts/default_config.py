@@ -10,6 +10,7 @@ def get_default_config():
     cfg.model.pretrained = True # automatically load pretrained model weights if available
     cfg.model.load_weights = '' # path to model weights
     cfg.model.resume = '' # path to checkpoint for resume training
+    cfg.model.feature_dim = 512
 
     # data
     cfg.data = CN()
@@ -187,7 +188,8 @@ def lr_scheduler_kwargs(cfg):
         'lr_scheduler': cfg.train.lr_scheduler,
         'stepsize': cfg.train.stepsize,
         'gamma': cfg.train.gamma,
-        'max_epoch': cfg.train.max_epoch
+        'max_epoch': cfg.train.max_epoch,
+        'lr': cfg.train.lr
     }
 
 
