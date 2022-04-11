@@ -26,14 +26,15 @@ def build_datamanager(cfg):
 
 def build_engine(cfg, datamanager, model, optimizer, scheduler):
     if cfg.data.type == 'image':
-        if cfg.loss.name == 'softmax':
+        if cfg.loss.name in ['softmax', 'am_softmax']:
             engine = torchreid.engine.ImageSoftmaxEngine(
                 datamanager,
                 model,
                 optimizer=optimizer,
                 scheduler=scheduler,
                 use_gpu=cfg.use_gpu,
-                label_smooth=cfg.loss.softmax.label_smooth
+                label_smooth=cfg.loss.softmax.label_smooth,
+                loss=cfg.loss.name
             )
 
         else:
@@ -157,7 +158,8 @@ def main():
         num_classes=datamanager.num_train_pids,
         loss=cfg.loss.name,
         pretrained=cfg.model.pretrained,
-        use_gpu=cfg.use_gpu
+        use_gpu=cfg.use_gpu,
+        feature_dim=cfg.model.feature_dim
     )
     num_params, flops = compute_model_complexity(
         model, (1, 3, cfg.data.height, cfg.data.width)

@@ -33,10 +33,10 @@ class Dolphins(ImageDataset):
         self.gallery_ann_file = osp.join(self.dataset_dir, "gallery_right.csv")
 
         required_files = [
-            self.dataset_dir, 
-            self.train_dir, 
-            self.query_dir, 
-            self.gallery_dir, 
+            self.dataset_dir,
+            self.train_dir,
+            self.query_dir,
+            self.gallery_dir,
             self.train_ann_file,
             self.test_ann_file
         ]
@@ -52,7 +52,6 @@ class Dolphins(ImageDataset):
         super(Dolphins, self).__init__(train, query, gallery, **kwargs)
 
     def process_dir(self, dir_path, mode):
-        img_paths = glob.glob(osp.join(dir_path, '*.jpg'))
         ann_file = None
         if mode == "train":
             ann_file = self.train_ann_file
@@ -62,10 +61,23 @@ class Dolphins(ImageDataset):
             ann_file = self.gallery_ann_file
 
         data = []
+        missing_count = 0
         with open(ann_file, newline='') as csvfile:
             reader = csv.DictReader(csvfile, delimiter=',')
+            id_to_idx = {}
+            last_id = 0
             for row in reader:
                 img_path = os.path.join(dir_path, row['image'])
-                data.append((img_path, int(float(row['id'])), int(float(row['camera_id']))))
+                if not osp.isfile(img_path):
+                    missing_count += 1
+                    continue
+                raw_id = int(float(row['id']))
+                if raw_id not in id_to_idx:
+                    id_to_idx[raw_id] = last_id
+                    last_id += 1
+                if mode == "train": id = id_to_idx[raw_id]
+                else: id = raw_id
+                data.append((img_path, id, int(float(row['camera_id']))))
+        print(f'Missing items: {missing_count}')
 
         return data

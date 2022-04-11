@@ -3,6 +3,7 @@ import warnings
 import torch
 from torch import nn
 from torch.nn import functional as F
+from torchreid.losses import AngleSimpleLinear
 
 __all__ = [
     'osnet_x1_0', 'osnet_x0_75', 'osnet_x0_5', 'osnet_x0_25', 'osnet_ibn_x1_0'
@@ -281,7 +282,7 @@ class OSBlock(nn.Module):
 ##########
 class OSNet(nn.Module):
     """Omni-Scale Network.
-    
+
     Reference:
         - Zhou et al. Omni-Scale Feature Learning for Person Re-Identification. ICCV, 2019.
         - Zhou et al. Learning Generalisable Omni-Scale Representations
@@ -295,6 +296,7 @@ class OSNet(nn.Module):
         layers,
         channels,
         feature_dim=512,
+        IN_first=False,
         loss='softmax',
         IN=False,
         **kwargs
@@ -333,12 +335,20 @@ class OSNet(nn.Module):
         )
         self.conv5 = Conv1x1(channels[3], channels[3])
         self.global_avgpool = nn.AdaptiveAvgPool2d(1)
+
+        if IN_first:
+            self.in_first = nn.InstanceNorm2d(3, affine=True)
+            self.conv1 = ConvLayer(3, channels[0], 7, stride=2, padding=3, IN=self.use_IN_first)
+
         # fully connected layer
         self.fc = self._construct_fc_layer(
             self.feature_dim, channels[3], dropout_p=None
         )
         # identity classification layer
-        self.classifier = nn.Linear(self.feature_dim, num_classes)
+        if self.loss not in ['am_softmax', ]:
+            self.classifier = nn.Linear(self.feature_dim, num_classes)
+        else:
+            self.classifier = AngleSimpleLinear(self.feature_dim, num_classes)
 
         self._init_params()
 
@@ -379,7 +389,10 @@ class OSNet(nn.Module):
         for dim in fc_dims:
             layers.append(nn.Linear(input_dim, dim))
             layers.append(nn.BatchNorm1d(dim))
-            layers.append(nn.ReLU(inplace=True))
+            if self.loss not in ['am_softmax', ]:
+                layers.append(nn.ReLU(inplace=True))
+            else:
+                layers.append(nn.PReLU())
             if dropout_p is not None:
                 layers.append(nn.Dropout(p=dropout_p))
             input_dim = dim
@@ -430,7 +443,7 @@ class OSNet(nn.Module):
         if not self.training:
             return v
         y = self.classifier(v)
-        if self.loss == 'softmax':
+        if 'softmax' in self.loss:
             return y
         elif self.loss == 'triplet':
             return y, v
@@ -440,7 +453,7 @@ class OSNet(nn.Module):
 
 def init_pretrained_weights(model, key=''):
     """Initializes model with pretrained weights.
-    
+
     Layers that don't match with pretrained layers in name or size are kept unchanged.
     """
     import os
