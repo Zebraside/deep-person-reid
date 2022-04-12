@@ -1,7 +1,6 @@
-import multiprocessing
+import argparse
 import os
 import os.path as osp
-import glob
 import csv
 from tqdm import tqdm
 import torchvision.transforms as T
@@ -10,15 +9,13 @@ import torch
 import pandas as pd
 from sklearn.metrics import pairwise_distances
 from torchreid.utils import FeatureExtractor
-from torch import multiprocessing
-from collections import defaultdict
-from PIL import Image
-from joblib import Parallel, delayed
-
 from torchreid import metrics
 from torchreid.utils import (
     MetricMeter, AverageMeter, read_image, re_ranking
 )
+from default_config import get_default_config, model_kwargs
+from torchreid.data.transforms import build_transforms
+
 
 class PredictionDataset(torch.utils.data.Dataset):
     def __init__(self, img_root, images, targets, transforms) -> None:
@@ -29,7 +26,7 @@ class PredictionDataset(torch.utils.data.Dataset):
         self.targets = targets
 
         self.t = transforms
-    
+
     def __len__(self):
         return len(self.image_list)
 
@@ -37,25 +34,13 @@ class PredictionDataset(torch.utils.data.Dataset):
         img = read_image(os.path.join(self.img_root, self.image_list[idx]))
         if self.t:
             img = self.t(img)
-        
+
         target = None
         if self.targets:
             target = self.targets[idx]
-        
+
         return img, target
 
-
-def get_preprocess(img_size):
-    image_size=img_size,
-    pixel_mean=[0.485, 0.456, 0.406]
-    pixel_std=[0.229, 0.224, 0.225]
-    pixel_norm=True
-    transforms = []
-    transforms += [T.Resize(image_size)]
-    transforms += [T.ToTensor()]
-    if pixel_norm:
-        transforms += [T.Normalize(mean=pixel_mean, std=pixel_std)]
-    return T.Compose(transforms)
 
 def get_embeddings(dataloader, extractor):
     embeddings = []
@@ -68,43 +53,44 @@ def get_embeddings(dataloader, extractor):
     targets = np.array(targets)
     return embeddings, targets
 
-def collect_precictions(query_img_dir, 
-                        query_imgs: list, 
-                        query_targets: list, 
+
+def collect_predictions(query_img_dir,
+                        query_imgs: list,
+                        query_targets: list,
                         gallery_img_dir,
                         gallery_imgs,
                         gallery_targets,
                         extractor,
-                        img_size,
+                        transform,
                         dist_metric='cosine',
                         use_avg_embed=False,
                         rerank=False):
-    test_dataset = PredictionDataset(query_img_dir, 
+    test_dataset = PredictionDataset(query_img_dir,
                                      query_imgs,
                                      query_targets,
-                                     get_preprocess(img_size))
+                                     transform)
     test_loader = torch.utils.data.DataLoader(test_dataset,
-                                            batch_size=300, 
+                                            batch_size=128,
                                             shuffle=False,
-                                            num_workers=30)
+                                            num_workers=4)
 
     test_embeddings, test_targets = get_embeddings(test_loader, extractor)
     print("Test mbeddings shape", test_embeddings.shape)
     print("Test targets shape", test_targets.shape)
 
 
-    gallery_dataset = PredictionDataset(gallery_img_dir, 
+    gallery_dataset = PredictionDataset(gallery_img_dir,
                                         gallery_imgs,
                                         gallery_targets,
-                                        get_preprocess(img_size))
+                                        transform)
     gallery_loader = torch.utils.data.DataLoader(gallery_dataset,
-                                                batch_size=300, 
+                                                batch_size=128,
                                                 shuffle=False,
-                                                num_workers=30)
+                                                num_workers=4)
 
 
     gallery_embeddings, gallery_targets = get_embeddings(gallery_loader, extractor)
-    print("Gallery mbeddings shape", gallery_embeddings.shape)
+    print("Gallery embeddings shape", gallery_embeddings.shape)
     print("Gallery targets shape", gallery_targets.shape)
 
     if use_avg_embed:
@@ -117,7 +103,7 @@ def collect_precictions(query_img_dir,
             new_targets.append(id)
         gallery_embeddings = np.array(new_embeddings)
         gallery_targets = np.array(new_targets)
-        
+
         print("Gallery beddings shape", gallery_embeddings.shape)
         print("Gallery targets shape", gallery_targets.shape)
 
@@ -127,12 +113,13 @@ def collect_precictions(query_img_dir,
         distmat_qq = metrics.compute_distance_matrix(torch.Tensor(test_embeddings), torch.Tensor(test_embeddings), dist_metric)
         distmat_gg = metrics.compute_distance_matrix(torch.Tensor(gallery_embeddings), torch.Tensor(gallery_embeddings), dist_metric)
         distmat = re_ranking(distmat, distmat_qq, distmat_gg)
-    
+
     return distmat, test_targets, gallery_targets
 
-def find_cutoff_thr(img_dir, imgs, targets, extractor, img_size, dist_metric='cosine'):
-    dataset = PredictionDataset(img_dir, imgs, targets, get_preprocess(img_size))
-    loader = torch.utils.data.DataLoader(dataset, batch_size=300, shuffle=False, num_workers=20)
+
+def find_cutoff_thr(img_dir, imgs, targets, extractor, transform, dist_metric='cosine'):
+    dataset = PredictionDataset(img_dir, imgs, targets, transform)
+    loader = torch.utils.data.DataLoader(dataset, batch_size=128, shuffle=False, num_workers=4)
     embeddings, targets = get_embeddings(loader, extractor)
 
     unique_targets = set(targets)
@@ -153,8 +140,24 @@ def find_cutoff_thr(img_dir, imgs, targets, extractor, img_size, dist_metric='co
 
 
 def main():
-    train_img_dir = "/home/kmolchanov/reps/whales/data/images_train_cropped"
-    prediction_img_dir = "/home/kmolchanov/reps/whales/data/images_test_cropped"
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    parser.add_argument(
+        '--root', type=str, default='/home/kmolchanov/reps/whales/data/')
+    parser.add_argument(
+        '--config', type=str, default='./configs/dolphins_vs_regular_wide_softmax_step.yaml')
+    parser.add_argument(
+        '--weights', type=str, default='./log/custom_osnet_x1_0_dolphins_ams_256_regular_wide/model/model.pth.tar-145')
+    args = parser.parse_args()
+
+    train_img_dir = osp.join(args.root, 'images_train_cropped')
+    prediction_img_dir = osp.join(args.root, 'images_test_cropped')
+
+    cfg = get_default_config()
+    cfg.use_gpu = torch.cuda.is_available()
+    cfg.merge_from_file(args.config)
+
     seed = "3976814873"
     predict = False
     rerank = False
@@ -164,20 +167,24 @@ def main():
     find_thr = False
     dist_metric='cosine'
 
-    img_size = (128, 384)
-    model_config = {
-        'model_name': 'osnet_x1_0',
-        'model_path': '/home/kmolchanov/reps/whales/deep-person-reid/log/custom_osnet_x1_0_dolphins_ams_256_regular_wide/model/model.pth.tar-145',
-        'image_size': img_size
-    }
-    extractor = FeatureExtractor(**model_config, device=f'cuda')
+    img_size = (cfg.data.height, cfg.data.width)
+    _, transform_te = build_transforms(
+            cfg.data.height,
+            cfg.data.width,
+            transforms=[],
+            norm_mean=cfg.data.norm_mean,
+            norm_std=cfg.data.norm_std
+        )
+    extractor = FeatureExtractor(model_kwargs=model_kwargs(cfg), device=f'cuda', model_path=args.weights,
+                                 image_size=img_size)
     if find_thr:
         print("Start calculating new id thr")
-        test_data = pd.read_csv(f"/home/kmolchanov/reps/whales/data/all_{seed}.csv")
-        find_cutoff_thr(train_img_dir, test_data['image'].to_list(), test_data['individual_id'].to_list(), extractor, img_size, dist_metric=dist_metric)
+        test_data = pd.read_csv(osp.join(args.root, f"all_{seed}.csv"))
+        find_cutoff_thr(train_img_dir, test_data['image'].to_list(), test_data['individual_id'].to_list(),
+                        extractor, transform_te, dist_metric=dist_metric)
     if test:
-        test_data = pd.read_csv(f"/home/kmolchanov/reps/whales/data/test_{seed}.csv")
-        gallery_data = pd.read_csv(f"/home/kmolchanov/reps/whales/data/gallery_{seed}.csv")
+        test_data = pd.read_csv(osp.join(args.root, f"test_{seed}.csv"))
+        gallery_data = pd.read_csv(osp.join(args.root, f"gallery_{seed}.csv"))
 
         # Uncomment this to get train data metrics. May be inaccurate due to cases when all samples are in test_data
         if use_all:
@@ -185,14 +192,14 @@ def main():
             test_data = all_data.sample(frac=0.2)
             gallery_data = all_data.drop(test_data.index)
 
-        distmat, test_targets, gallery_targets = collect_precictions(train_img_dir,
+        distmat, test_targets, gallery_targets = collect_predictions(train_img_dir,
                                                                      test_data['image'].to_list(),
                                                                      test_data['individual_id'].to_list(),
                                                                      train_img_dir,
                                                                      gallery_data['image'].to_list(),
                                                                      gallery_data['individual_id'].to_list(),
                                                                      extractor,
-                                                                     img_size,
+                                                                     transform_te,
                                                                      dist_metric=dist_metric,
                                                                      use_avg_embed=use_avg_embed,
                                                                      rerank=rerank)
@@ -213,7 +220,7 @@ def main():
             #         top4 += distsort[idx][0] > 0.28
             #         top5 += distsort[idx][0] > 0.28
             #         top10 += distsort[idx][0] > 0.28
-            # else:   
+            # else:
             # remove examples that can't be found
             if query_ids[idx] not in gallery_ids:
                 continue
@@ -224,7 +231,7 @@ def main():
             top4 += test_targets[idx] in individs_sorted[:4]
             top5 += test_targets[idx] in individs_sorted[:5]
             top10 += test_targets[idx] in individs_sorted[:10]
-        
+
         print("Top1", top1 / count)
         print("Top4", top4 / count)
         print("Top5", top5 / count)
@@ -234,18 +241,18 @@ def main():
         all_data = pd.read_csv(f"/home/kmolchanov/reps/whales/data/all_{seed}.csv")
         prediction_data = pd.read_csv(f"/home/kmolchanov/reps/whales/data/test.csv")
 
-        distmat, predict_targets, train_targets = collect_precictions(prediction_img_dir,
+        distmat, predict_targets, train_targets = collect_predictions(prediction_img_dir,
                                                                       prediction_data['image'].to_list(),
                                                                       prediction_data['image'].to_list(), # God of good code, please, forgive me for that
                                                                       train_img_dir,
                                                                       all_data['image'].to_list(),
                                                                       all_data['individual_id'].to_list(),
                                                                       extractor,
-                                                                      img_size,
+                                                                      transform_te,
                                                                       dist_metric=dist_metric,
                                                                       use_avg_embed=use_avg_embed,
                                                                       rerank=rerank)
-        
+
         print("Save result")
         distmap_sorted = np.argsort(distmat, axis=1).astype(int)
         distsort = np.sort(distmat, axis=1)[:, :5]
