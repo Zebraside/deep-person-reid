@@ -16,6 +16,7 @@ import torchreid
 from torchreid.utils import (
     check_isfile, mkdir_if_missing, load_pretrained_weights
 )
+from scripts.default_config import get_default_config, model_kwargs
 
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD = [0.229, 0.224, 0.225]
@@ -131,20 +132,20 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--root', type=str)
     parser.add_argument('-d', '--dataset', type=str, default='market1501')
-    parser.add_argument('-m', '--model', type=str, default='osnet_x1_0')
+    parser.add_argument('-с', '--config', type=str, default='osnet_x1_0')
     parser.add_argument('--weights', type=str)
     parser.add_argument('--save-dir', type=str, default='log')
-    parser.add_argument('--height', type=int, default=256)
-    parser.add_argument('--width', type=int, default=128)
     args = parser.parse_args()
 
-    use_gpu = torch.cuda.is_available()
+    cfg = get_default_config()
+    cfg.use_gpu = torch.cuda.is_available()
+    cfg.merge_from_file(args.config)
 
     datamanager = torchreid.data.ImageDataManager(
         root=args.root,
         sources=args.dataset,
-        height=args.height,
-        width=args.width,
+        height=cfg.data.height,
+        width=cfg.data.width,
         batch_size_train=100,
         batch_size_test=100,
         transforms=None,
@@ -153,19 +154,18 @@ def main():
     test_loader = datamanager.test_loader
 
     model = torchreid.models.build_model(
-        name=args.model,
         num_classes=datamanager.num_train_pids,
-        use_gpu=use_gpu
+        **model_kwargs(cfg)
     )
 
-    if use_gpu:
+    if cfg.use_gpu:
         model = model.cuda()
 
     if args.weights and check_isfile(args.weights):
         load_pretrained_weights(model, args.weights)
 
     visactmap(
-        model, test_loader, args.save_dir, args.width, args.height, use_gpu
+        model, test_loader, args.save_dir, cfg.data.width, cfg.data.height, cfg.use_gpu
     )
 
 
