@@ -121,5 +121,7 @@ def build_model(
         pretrained=pretrained,
         use_gpu=use_gpu,
         feature_dim=feature_dim,
-        in_first=in_first
+        in_first=in_first,
+        pooling_type=pooling_type,
+        input_size=input_size
     )
