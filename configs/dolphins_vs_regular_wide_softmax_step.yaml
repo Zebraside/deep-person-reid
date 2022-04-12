@@ -1,0 +1,40 @@
+model:
+  name: 'osnet_x1_0'
+  pretrained: True
+  feature_dim: 256
+
+data:
+  type: 'image'
+  sources: ['dolphins']
+  targets: ['dolphins']
+  height: 128
+  width: 384
+  combineall: False
+  transforms: ['random_flip']
+  save_dir: 'log/custom_osnet_x1_0_dolphins_sm_256_regular_wide'
+
+sampler:
+  train_sampler: 'RandomIdentitySampler'
+
+loss:
+  name: 'softmax'
+  softmax:
+    label_smooth: True
+
+train:
+  optim: 'amsgrad'
+  lr: 0.0015
+  max_epoch: 140
+  batch_size: 64
+  fixbase_epoch: 5
+  open_layers: ['classifier', 'fc']
+  lr_scheduler: 'multi_step'
+  stepsize: [60, 100]
+
+test:
+  batch_size: 16
+  dist_metric: 'euclidean'
+  normalize_feature: False
+  evaluate: False
+  eval_freq: 5
+  rerank: False
