@@ -61,7 +61,11 @@ class ImageSoftmaxEngine(Engine):
         scheduler=None,
         use_gpu=True,
         label_smooth=True,
-        loss='softmax'
+        loss='softmax',
+        conf_penalty=0.,
+        margin=0.35,
+        scale=30,
+        pr_product=False,
     ):
         super(ImageSoftmaxEngine, self).__init__(datamanager, use_gpu)
 
@@ -78,7 +82,9 @@ class ImageSoftmaxEngine(Engine):
             )
         elif loss == 'am_softmax':
             self.criterion = AMSoftmaxLoss(label_smooth=label_smooth,
-                                           use_gpu=self.use_gpu)
+                                           use_gpu=self.use_gpu, m=margin,
+                                           s=scale, pr_product=pr_product,
+                                           conf_penalty=conf_penalty)
 
 
     def forward_backward(self, data):

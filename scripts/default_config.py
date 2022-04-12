@@ -91,6 +91,10 @@ def get_default_config():
     cfg.loss.name = 'softmax'
     cfg.loss.softmax = CN()
     cfg.loss.softmax.label_smooth = True # use label smoothing regularizer
+    cfg.loss.softmax.conf_penalty = 0.0
+    cfg.loss.softmax.m = 0.35
+    cfg.loss.softmax.s = 30
+    cfg.loss.softmax.pr_product = False
     cfg.loss.triplet = CN()
     cfg.loss.triplet.margin = 0.3 # distance margin
     cfg.loss.triplet.weight_t = 1. # weight to balance hard triplet loss
