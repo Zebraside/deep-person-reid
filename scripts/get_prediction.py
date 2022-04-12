@@ -15,6 +15,7 @@ from torchreid.utils import (
 )
 from default_config import get_default_config, model_kwargs
 from torchreid.data.transforms import build_transforms
+from torch.nn import functional as F
 
 
 class PredictionDataset(torch.utils.data.Dataset):
@@ -42,12 +43,15 @@ class PredictionDataset(torch.utils.data.Dataset):
         return img, target
 
 
-def get_embeddings(dataloader, extractor):
+def get_embeddings(dataloader, extractor, normalize=False):
     embeddings = []
     targets = []
     for batch in tqdm(dataloader):
         imgs, inds = batch
-        embeddings.extend(extractor(imgs).cpu().numpy())
+        outputs = extractor(imgs)
+        if normalize:
+            outputs = F.normalize(outputs, dim=1)
+        embeddings.extend(outputs.cpu().numpy())
         targets.extend(inds)
     embeddings = np.array(embeddings)
     targets = np.array(targets)
@@ -64,6 +68,7 @@ def collect_predictions(query_img_dir,
                         transform,
                         dist_metric='cosine',
                         use_avg_embed=False,
+                        normalize=False,
                         rerank=False):
     test_dataset = PredictionDataset(query_img_dir,
                                      query_imgs,
@@ -74,7 +79,7 @@ def collect_predictions(query_img_dir,
                                             shuffle=False,
                                             num_workers=4)
 
-    test_embeddings, test_targets = get_embeddings(test_loader, extractor)
+    test_embeddings, test_targets = get_embeddings(test_loader, extractor, normalize)
     print("Test mbeddings shape", test_embeddings.shape)
     print("Test targets shape", test_targets.shape)
 
@@ -89,7 +94,7 @@ def collect_predictions(query_img_dir,
                                                 num_workers=4)
 
 
-    gallery_embeddings, gallery_targets = get_embeddings(gallery_loader, extractor)
+    gallery_embeddings, gallery_targets = get_embeddings(gallery_loader, extractor, normalize)
     print("Gallery embeddings shape", gallery_embeddings.shape)
     print("Gallery targets shape", gallery_targets.shape)
 
@@ -104,7 +109,7 @@ def collect_predictions(query_img_dir,
         gallery_embeddings = np.array(new_embeddings)
         gallery_targets = np.array(new_targets)
 
-        print("Gallery beddings shape", gallery_embeddings.shape)
+        print("Gallery embeddings shape", gallery_embeddings.shape)
         print("Gallery targets shape", gallery_targets.shape)
 
     distmat = pairwise_distances(test_embeddings, gallery_embeddings, metric=dist_metric)
@@ -159,13 +164,14 @@ def main():
     cfg.merge_from_file(args.config)
 
     seed = "3976814873"
-    predict = False
+    predict = True
     rerank = False
-    test = True
+    test = False
     use_all = False
-    use_avg_embed = False
+    use_avg_embed = True
     find_thr = False
     dist_metric='cosine'
+    normalize=False
 
     img_size = (cfg.data.height, cfg.data.width)
     _, transform_te = build_transforms(
@@ -202,6 +208,7 @@ def main():
                                                                      transform_te,
                                                                      dist_metric=dist_metric,
                                                                      use_avg_embed=use_avg_embed,
+                                                                     normalize=normalize,
                                                                      rerank=rerank)
 
         top1 = 0
@@ -238,8 +245,8 @@ def main():
         print("Top10", top10 / count)
 
     if predict:
-        all_data = pd.read_csv(f"/home/kmolchanov/reps/whales/data/all_{seed}.csv")
-        prediction_data = pd.read_csv(f"/home/kmolchanov/reps/whales/data/test.csv")
+        all_data = pd.read_csv(osp.join(args.root, f"all_{seed}.csv"))
+        prediction_data = pd.read_csv(osp.join(args.root, f"test.csv"))
 
         distmat, predict_targets, train_targets = collect_predictions(prediction_img_dir,
                                                                       prediction_data['image'].to_list(),
@@ -251,6 +258,7 @@ def main():
                                                                       transform_te,
                                                                       dist_metric=dist_metric,
                                                                       use_avg_embed=use_avg_embed,
+                                                                      normalize=normalize,
                                                                       rerank=rerank)
 
         print("Save result")

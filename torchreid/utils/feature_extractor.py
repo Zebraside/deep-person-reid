@@ -69,7 +69,8 @@ class FeatureExtractor(object):
         verbose=True
     ):
         # Build model
-        model_kwargs['name'] = model_name
+        if model_name:
+            model_kwargs['name'] = model_name
         model_kwargs['input_size'] = image_size
         model_kwargs['pretrained'] = not (model_path and check_isfile(model_path))
         model_kwargs['use_gpu']=device.startswith('cuda')
