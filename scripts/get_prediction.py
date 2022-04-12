@@ -45,8 +45,8 @@ class PredictionDataset(torch.utils.data.Dataset):
         return img, target
 
 
-def get_preprocess():
-    image_size=(256, 512),
+def get_preprocess(img_size):
+    image_size=img_size,
     pixel_mean=[0.485, 0.456, 0.406]
     pixel_std=[0.229, 0.224, 0.225]
     pixel_norm=True
@@ -75,13 +75,14 @@ def collect_precictions(query_img_dir,
                         gallery_imgs,
                         gallery_targets,
                         extractor,
+                        img_size,
                         dist_metric='cosine',
                         use_avg_embed=False,
                         rerank=False):
     test_dataset = PredictionDataset(query_img_dir, 
                                      query_imgs,
                                      query_targets,
-                                     get_preprocess())
+                                     get_preprocess(img_size))
     test_loader = torch.utils.data.DataLoader(test_dataset,
                                             batch_size=300, 
                                             shuffle=False,
@@ -95,7 +96,7 @@ def collect_precictions(query_img_dir,
     gallery_dataset = PredictionDataset(gallery_img_dir, 
                                         gallery_imgs,
                                         gallery_targets,
-                                        get_preprocess())
+                                        get_preprocess(img_size))
     gallery_loader = torch.utils.data.DataLoader(gallery_dataset,
                                                 batch_size=300, 
                                                 shuffle=False,
@@ -129,30 +130,61 @@ def collect_precictions(query_img_dir,
     
     return distmat, test_targets, gallery_targets
 
+def find_cutoff_thr(img_dir, imgs, targets, extractor, img_size, dist_metric='cosine'):
+    dataset = PredictionDataset(img_dir, imgs, targets, get_preprocess(img_size))
+    loader = torch.utils.data.DataLoader(dataset, batch_size=300, shuffle=False, num_workers=20)
+    embeddings, targets = get_embeddings(loader, extractor)
+
+    unique_targets = set(targets)
+
+    distmat = pairwise_distances(embeddings, embeddings, metric=dist_metric)
+    print(distmat.shape)
+    # Holly pottato, what a wired 2d slicing to get matrixies for specific target
+    other_embed = np.concatenate([distmat[np.argwhere(targets != target)].squeeze(axis=1)[:, np.argwhere(targets != target)].flatten() for target in tqdm(unique_targets)])
+    target_embed = np.concatenate([distmat[np.argwhere(targets == target)].squeeze(axis=1)[:, np.argwhere(targets == target)].flatten() for target in tqdm(unique_targets)])
+    print(other_embed.shape, target_embed.shape)
+    print(np.min(other_embed), np.max(other_embed), np.mean(other_embed), np.median(other_embed))
+    print(np.min(target_embed), np.max(target_embed), np.mean(target_embed), np.median(target_embed))
+    # for target in unique_targets:
+    #     other_embeddigs = distmat[np.argwhere(targets != target)].squeeze(axis=1)[:, np.argwhere(targets != target)].squeeze()
+    #     target_embeddings = distmat[np.argwhere(targets == target)].squeeze(axis=1)[:, np.argwhere(targets == target)].squeeze()
+    #     print("Self", target, np.mean(target_embeddings), np.median(target_embeddings), np.min(target_embeddings), np.max(target_embeddings))
+    #     print("Other", target, np.mean(other_embeddigs),  np.median(other_embeddigs), np.min(other_embeddigs), np.max(other_embeddigs))
+
+
 def main():
     train_img_dir = "/home/kmolchanov/reps/whales/data/images_train_cropped"
     prediction_img_dir = "/home/kmolchanov/reps/whales/data/images_test_cropped"
-    test = True
-    predict = True
+    seed = "3976814873"
+    predict = False
     rerank = False
-    use_avg_embed = True
+    test = True
+    use_all = False
+    use_avg_embed = False
+    find_thr = False
     dist_metric='cosine'
 
+    img_size = (128, 384)
     model_config = {
         'model_name': 'osnet_x1_0',
-        'model_path': '/home/kmolchanov/reps/whales/runs/logs/reid/custom_osnet_x1_0_dolphins_softmax_cosinelr_512_body_improved/model/model.pth.tar-145',
-        'image_size': (256, 512)
+        'model_path': '/home/kmolchanov/reps/whales/deep-person-reid/log/custom_osnet_x1_0_dolphins_ams_256_regular_wide/model/model.pth.tar-145',
+        'image_size': img_size
     }
     extractor = FeatureExtractor(**model_config, device=f'cuda')
-
+    if find_thr:
+        print("Start calculating new id thr")
+        test_data = pd.read_csv(f"/home/kmolchanov/reps/whales/data/all_{seed}.csv")
+        find_cutoff_thr(train_img_dir, test_data['image'].to_list(), test_data['individual_id'].to_list(), extractor, img_size, dist_metric=dist_metric)
     if test:
-        test_data = pd.read_csv("/home/kmolchanov/reps/whales/data/test_right_1.csv")
-        gallery_data = pd.read_csv("/home/kmolchanov/reps/whales/data/gallery_right_1.csv")
-        all_data = pd.read_csv("/home/kmolchanov/reps/whales/data/all_right_1.csv")
+        test_data = pd.read_csv(f"/home/kmolchanov/reps/whales/data/test_{seed}.csv")
+        gallery_data = pd.read_csv(f"/home/kmolchanov/reps/whales/data/gallery_{seed}.csv")
 
         # Uncomment this to get train data metrics. May be inaccurate due to cases when all samples are in test_data
-        test_data = all_data.sample(frac=0.2)
-        gallery_data = all_data.drop(test_data.index)
+        if use_all:
+            all_data = pd.read_csv(f"/home/kmolchanov/reps/whales/data/all_{seed}.csv")
+            test_data = all_data.sample(frac=0.2)
+            gallery_data = all_data.drop(test_data.index)
+
         distmat, test_targets, gallery_targets = collect_precictions(train_img_dir,
                                                                      test_data['image'].to_list(),
                                                                      test_data['individual_id'].to_list(),
@@ -160,6 +192,7 @@ def main():
                                                                      gallery_data['image'].to_list(),
                                                                      gallery_data['individual_id'].to_list(),
                                                                      extractor,
+                                                                     img_size,
                                                                      dist_metric=dist_metric,
                                                                      use_avg_embed=use_avg_embed,
                                                                      rerank=rerank)
@@ -169,21 +202,37 @@ def main():
         top5 = 0
         top10 = 0
         distmap_sorted = np.argsort(distmat, axis=1).astype(int)
+        distsort = np.sort(distmat, axis=1)
+        query_ids = test_data['individual_id'].to_list()
+        gallery_ids = set(gallery_data['individual_id'].to_list())
+        count = 0
         for idx, vec in enumerate(distmap_sorted):
+            # if distsort[idx][0] > 1:
+            #     if query_ids[idx] not in gallery_ids:
+            #         top1 += distsort[idx][0] > 0.28
+            #         top4 += distsort[idx][0] > 0.28
+            #         top5 += distsort[idx][0] > 0.28
+            #         top10 += distsort[idx][0] > 0.28
+            # else:   
+            # remove examples that can't be found
+            if query_ids[idx] not in gallery_ids:
+                continue
+
+            count += 1
             individs_sorted = gallery_targets[vec]
             top1 += test_targets[idx] in individs_sorted[:1]
             top4 += test_targets[idx] in individs_sorted[:4]
             top5 += test_targets[idx] in individs_sorted[:5]
             top10 += test_targets[idx] in individs_sorted[:10]
         
-        print("Top1", top1 / len(test_targets))
-        print("Top4", top4 / len(test_targets))
-        print("Top5", top5 / len(test_targets))
-        print("Top10", top10 / len(test_targets))
+        print("Top1", top1 / count)
+        print("Top4", top4 / count)
+        print("Top5", top5 / count)
+        print("Top10", top10 / count)
 
     if predict:
-        all_data = pd.read_csv("/home/kmolchanov/reps/whales/data/all_right_1.csv")
-        prediction_data = pd.read_csv("/home/kmolchanov/reps/whales/data/test.csv")
+        all_data = pd.read_csv(f"/home/kmolchanov/reps/whales/data/all_{seed}.csv")
+        prediction_data = pd.read_csv(f"/home/kmolchanov/reps/whales/data/test.csv")
 
         distmat, predict_targets, train_targets = collect_precictions(prediction_img_dir,
                                                                       prediction_data['image'].to_list(),
@@ -192,13 +241,21 @@ def main():
                                                                       all_data['image'].to_list(),
                                                                       all_data['individual_id'].to_list(),
                                                                       extractor,
+                                                                      img_size,
                                                                       dist_metric=dist_metric,
                                                                       use_avg_embed=use_avg_embed,
                                                                       rerank=rerank)
         
         print("Save result")
         distmap_sorted = np.argsort(distmat, axis=1).astype(int)
-        with open('prediction_new.csv', 'w', newline='') as csvfile:
+        distsort = np.sort(distmat, axis=1)[:, :5]
+        print(distsort.shape)
+        print(np.min(distsort, axis=0))
+        print(np.max(distsort, axis=0))
+        print(np.mean(distsort, axis=0))
+        print(np.median(distsort, axis=0))
+
+        with open('prediction.csv', 'w', newline='') as csvfile:
             writer = csv.writer(csvfile, delimiter=',')
 
             writer.writerow(["image","predictions"])
