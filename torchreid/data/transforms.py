@@ -145,7 +145,7 @@ class RandomPatch(object):
     """Random patch data augmentation.
 
     There is a patch pool that stores randomly extracted pathces from person images.
-    
+
     For each input image, RandomPatch
         1) extracts a random patch and stores the patch in the patch pool;
         2) randomly selects a patch from the patch pool and pastes it on the
