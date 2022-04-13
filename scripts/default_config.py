@@ -13,6 +13,7 @@ def get_default_config():
     cfg.model.feature_dim = 512
     cfg.model.in_first = False
     cfg.model.pooling_type = 'avg'
+    cfg.model.attrs_num = 0
 
     # data
     cfg.data = CN()
@@ -198,7 +199,8 @@ def model_kwargs(cfg):
         'feature_dim': cfg.model.feature_dim,
         'in_first': cfg.model.in_first,
         'pooling_type': cfg.model.pooling_type,
-        'input_size': (cfg.data.height, cfg.data.width)
+        'input_size': (cfg.data.height, cfg.data.width),
+        'attrs_num' : cfg.model.attrs_num
     }
 
 

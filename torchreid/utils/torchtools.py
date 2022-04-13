@@ -233,7 +233,7 @@ def count_num_param(model):
         >>> model_size = count_num_param(model)
 
     .. warning::
-        
+
         This method is deprecated in favor of
         ``torchreid.utils.compute_model_complexity``.
     """
@@ -310,3 +310,9 @@ def load_pretrained_weights(model, weight_path):
                 'due to unmatched keys or layer size: {}'.
                 format(discarded_layers)
             )
+
+
+def get_model_attr(model, attr):
+    if hasattr(model, 'module'):
+        model = model.module
+    return getattr(model, attr)

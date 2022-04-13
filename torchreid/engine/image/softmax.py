@@ -2,6 +2,7 @@ from __future__ import division, print_function, absolute_import
 
 from torchreid import metrics
 from torchreid.losses import CrossEntropyLoss, AMSoftmaxLoss
+from torchreid.utils.torchtools import get_model_attr
 
 from ..engine import Engine
 
@@ -86,6 +87,14 @@ class ImageSoftmaxEngine(Engine):
                                            s=scale, pr_product=pr_product,
                                            conf_penalty=conf_penalty)
 
+        self.num_attrs = get_model_attr(self.model, 'attrs_num')
+        if self.num_attrs:
+            self.attr_criterion = CrossEntropyLoss(
+                num_classes=self.num_attrs,
+                use_gpu=self.use_gpu,
+                label_smooth=label_smooth
+            )
+
 
     def forward_backward(self, data):
         imgs, pids = self.parse_data_for_train(data)
@@ -95,7 +104,13 @@ class ImageSoftmaxEngine(Engine):
             pids = pids.cuda()
 
         outputs = self.model(imgs)
-        loss = self.compute_loss(self.criterion, outputs, pids)
+        if self.num_attrs:
+            loss = self.compute_loss(self.criterion, outputs[0], pids)
+            attr_loss = 0.1 * self.compute_loss(self.attr_criterion, outputs[1], data['attr'])
+            loss += attr_loss
+        else:
+            loss = self.compute_loss(self.criterion, outputs, pids)
+
 
         self.optimizer.zero_grad()
         loss.backward()
@@ -105,5 +120,7 @@ class ImageSoftmaxEngine(Engine):
             'loss': loss.item(),
             'acc': metrics.accuracy(outputs, pids)[0].item()
         }
+        if self.num_attrs:
+            loss_summary['attr_loss'] = attr_loss.item()
 
         return loss_summary
