@@ -90,7 +90,8 @@ def show_avai_models():
 
 def build_model(
     name, num_classes, loss='softmax', pretrained=True, use_gpu=True,
-    feature_dim=512, in_first=False, pooling_type='avg', input_size=(256, 128)
+    feature_dim=512, in_first=False, pooling_type='avg', input_size=(256, 128),
+    attrs_num=0
 ):
     """A function wrapper for building a model.
 
@@ -123,5 +124,6 @@ def build_model(
         feature_dim=feature_dim,
         in_first=in_first,
         pooling_type=pooling_type,
-        input_size=input_size
+        input_size=input_size,
+        attrs_num=attrs_num
     )
