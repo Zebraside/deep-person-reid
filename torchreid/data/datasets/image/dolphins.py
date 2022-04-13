@@ -67,30 +67,13 @@ class Dolphins(ImageDataset):
         hist_data = {}
         with open(ann_file, newline='') as csvfile:
             reader = csv.DictReader(csvfile, delimiter=',')
-            species_list = set()
-            id_to_idx = {}
-            last_id = 0
             for row in reader:
                 img_path = os.path.join(dir_path, row['image'])
-                if not osp.isfile(img_path):
-                    missing_count += 1
-                    continue
-                raw_id = int(float(row['id']))
-                if raw_id not in id_to_idx:
-                    id_to_idx[raw_id] = last_id
-                    last_id += 1
-                if mode == "train":
-                    id = id_to_idx[raw_id]
-                    species_list.add(row['species'])
-                else: id = raw_id
-                data.append((img_path, id, int(float(row['camera_id'])), row['species']))
+                data.append((img_path, int(row['id']), int(row['camera_id']), row['species_id']))
 
             if mode == 'train':
-                species_list = sorted(list(species_list))
-                species_map = {specie : i for i, specie in enumerate(species_list)}
-
                 for i, item in enumerate(data):
-                    data[i] = (*item[0:-1], 0, species_map[item[-1]]) # extra 0 is dataset id
+                    data[i] = (*item[0:-1], 0, item[-1]) # extra 0 is dataset id
                     if item[1] in hist_data:
                         hist_data[item[1]] += 1
                     else:

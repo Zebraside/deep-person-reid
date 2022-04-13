@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import random
+import os
 
 TRAIN_FILE_PATH = "/home/kmolchanov/reps/whales/data/train.csv"
 TRAIN_IMG_PATH = "/home/kmolchanov/reps/whales/data/images_train_cropped"
@@ -17,6 +18,19 @@ df = df.filter(lambda x : len(x) >= MIN_IMG_THRES) # all individuals with more t
 
 # Remove all images that doesn't have crops
 df = df[df['image'].apply( lambda x : os.path.exists(f"{TRAIN_IMG_PATH}/{x}"))]
+
+# According to https://www.kaggle.com/code/andradaolteanu/whales-dolphins-effnet-embedding-cos-distance#2.-Individual-Analysis
+species_fix = {
+    "bottlenose_dolpin": "bottlenose_dolphin",
+    "kiler_whale": "killer_whale",
+    "beluga": "beluga_whale",
+    "globis": "short_finned_pilot_whale",
+    "pilot_whale": "short_finned_pilot_whale"
+}
+
+df['species'] = df['species'].map(species_fix)
+species_to_id = {s: i for i, s in enumerate(df['species'].unique())}
+df['species_id'] = df['species'].map(species_to_id)
 
 # Add ReId ids and Camera Ids to the df
 ids = list(df['individual_id'].unique())
