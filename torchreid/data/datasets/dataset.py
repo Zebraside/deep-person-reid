@@ -199,14 +199,27 @@ class Dataset(object):
         pid2label = {pid: i for i, pid in enumerate(g_pids)}
 
         def _combine_data(data):
-            for img_path, pid, camid, dsetid in data:
-                if pid in self._junk_pids:
-                    continue
-                pid = pid2label[pid] + self.num_train_pids
-                combined.append((img_path, pid, camid, dsetid))
+            if len(data[0]) == 4:
+                for img_path, pid, camid, dsetid in data:
+                    if pid in self._junk_pids:
+                        continue
+                    pid = pid2label[pid] + self.num_train_pids
+                    combined.append((img_path, pid, camid, dsetid))
+            if len(data[0]) == 5:
+                for img_path, pid, camid, dsetid, attr in data:
+                    if pid in self._junk_pids:
+                        continue
+                    pid = pid2label[pid] + self.num_train_pids
+                    combined.append((img_path, pid, camid, dsetid, attr))
+            else:
+                print("Unknown data format")
+                assert False
 
         _combine_data(self.query)
         _combine_data(self.gallery)
+
+        if len(set([len(d) for d in combined])) != 1:
+            print("WARNING! data has inconsitend format")
 
         self.train = combined
         self.num_train_pids = self.get_num_pids(self.train)
