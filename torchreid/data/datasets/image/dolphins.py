@@ -63,32 +63,29 @@ class Dolphins(ImageDataset):
             ann_file = self.gallery_ann_file
 
         data = []
-        missing_count = 0
         hist_data = {}
         with open(ann_file, newline='') as csvfile:
             reader = csv.DictReader(csvfile, delimiter=',')
             for row in reader:
                 img_path = os.path.join(dir_path, row['image'])
-                data.append((img_path, int(row['id']), int(row['camera_id']), row['species_id']))
+                data.append((img_path, int(row['id']), int(row['camera_id']), int(row['species_id'])))
 
-            if mode == 'train':
-                for i, item in enumerate(data):
-                    data[i] = (*item[0:-1], 0, item[-1]) # extra 0 is dataset id
-                    if item[1] in hist_data:
-                        hist_data[item[1]] += 1
-                    else:
-                        hist_data[item[1]] = 1
+            for i, item in enumerate(data):
+                data[i] = (*item[0:-1], 0, item[-1]) # extra 0 is dataset id
+                if item[1] in hist_data:
+                    hist_data[item[1]] += 1
+                else:
+                    hist_data[item[1]] = 1
 
-                if False:
-                    print(len(species_map))
-                    import matplotlib.pyplot as plt
-                    hist_data = list(sorted(hist_data.values()))
-                    print(hist_data)
-                    plt.hist(hist_data, bins=100)
-                    plt.show()
-                    print(len(list(filter(lambda x: x > 4, hist_data))))
-                    exit(0)
+            if False:
+                print(len(species_map))
+                import matplotlib.pyplot as plt
+                hist_data = list(sorted(hist_data.values()))
+                print(hist_data)
+                plt.hist(hist_data, bins=100)
+                plt.show()
+                print(len(list(filter(lambda x: x > 4, hist_data))))
+                exit(0)
 
-        print(f'Missing items: {missing_count}')
 
         return data
