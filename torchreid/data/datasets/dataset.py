@@ -1,5 +1,6 @@
 from __future__ import division, print_function, absolute_import
 import copy
+from tkinter.messagebox import NO
 import numpy as np
 import os.path as osp
 import tarfile
@@ -322,7 +323,11 @@ class ImageDataset(Dataset):
         super(ImageDataset, self).__init__(train, query, gallery, **kwargs)
 
     def __getitem__(self, index):
-        img_path, pid, camid, dsetid = self.data[index]
+        attr = None
+        if len(self.data[index]) == 4:
+            img_path, pid, camid, dsetid = self.data[index]
+        elif len(self.data[index]) == 5:
+            img_path, pid, camid, dsetid, attr = self.data[index]
         img = read_image(img_path)
         if self.transform is not None:
             img = self._transform_image(self.transform, self.k_tfm, img)
@@ -331,8 +336,10 @@ class ImageDataset(Dataset):
             'pid': pid,
             'camid': camid,
             'impath': img_path,
-            'dsetid': dsetid
+            'dsetid': dsetid,
         }
+        if attr is not None:
+            item['attr'] = attr
         return item
 
     def show_summary(self):

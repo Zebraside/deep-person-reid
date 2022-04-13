@@ -1,4 +1,5 @@
 from __future__ import division, print_function, absolute_import
+import enum
 import os
 import glob
 import os.path as osp
@@ -28,7 +29,7 @@ class Dolphins(ImageDataset):
             self.dataset_dir, self.train_dir
         )
 
-        seed = 'right'
+        seed = '3976814873'
         self.train_ann_file = osp.join(self.dataset_dir, f"train_{seed}.csv")
         self.test_ann_file = osp.join(self.dataset_dir, f"test_{seed}.csv")
         self.gallery_ann_file = osp.join(self.dataset_dir, f"gallery_{seed}.csv")
@@ -63,8 +64,10 @@ class Dolphins(ImageDataset):
 
         data = []
         missing_count = 0
+        hist_data = {}
         with open(ann_file, newline='') as csvfile:
             reader = csv.DictReader(csvfile, delimiter=',')
+            species_list = set()
             id_to_idx = {}
             last_id = 0
             for row in reader:
@@ -76,9 +79,33 @@ class Dolphins(ImageDataset):
                 if raw_id not in id_to_idx:
                     id_to_idx[raw_id] = last_id
                     last_id += 1
-                if mode == "train": id = id_to_idx[raw_id]
+                if mode == "train":
+                    id = id_to_idx[raw_id]
+                    species_list.add(row['species'])
                 else: id = raw_id
-                data.append((img_path, id, int(float(row['camera_id']))))
+                data.append((img_path, id, int(float(row['camera_id'])), row['species']))
+
+            if mode == 'train':
+                species_list = sorted(list(species_list))
+                species_map = {specie : i for i, specie in enumerate(species_list)}
+
+                for i, item in enumerate(data):
+                    data[i] = (*item[0:-1], 0, species_map[item[-1]]) # extra 0 is dataset id
+                    if item[1] in hist_data:
+                        hist_data[item[1]] += 1
+                    else:
+                        hist_data[item[1]] = 1
+
+                if False:
+                    print(len(species_map))
+                    import matplotlib.pyplot as plt
+                    hist_data = list(sorted(hist_data.values()))
+                    print(hist_data)
+                    plt.hist(hist_data, bins=100)
+                    plt.show()
+                    print(len(list(filter(lambda x: x > 4, hist_data))))
+                    exit(0)
+
         print(f'Missing items: {missing_count}')
 
         return data

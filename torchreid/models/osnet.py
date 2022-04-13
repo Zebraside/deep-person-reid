@@ -311,6 +311,7 @@ class OSNet(nn.Module):
         input_size=(256, 128),
         IN=False,
         pooling_type='avg',
+        attrs_num=0,
         **kwargs
     ):
         super(OSNet, self).__init__()
@@ -319,6 +320,7 @@ class OSNet(nn.Module):
         assert num_blocks == len(channels) - 1
         self.loss = loss
         self.feature_dim = feature_dim
+        self.attrs_num = attrs_num
 
         # convolutional backbone
         self.conv1 = ConvLayer(3, channels[0], 7, stride=2, padding=3, IN=IN)
@@ -373,6 +375,12 @@ class OSNet(nn.Module):
             self.classifier = nn.Linear(self.feature_dim, num_classes)
         else:
             self.classifier = AngleSimpleLinear(self.feature_dim, num_classes)
+
+        if self.attrs_num:
+            attr_feature_dim = self.feature_dim // 4
+            self.attr_fc = self._construct_fc_layer(
+                attr_feature_dim, channels[3], dropout_p=None)
+            self.attr_classifier = nn.Linear(attr_feature_dim, self.attrs_num)
 
         self._init_params()
 
@@ -460,14 +468,15 @@ class OSNet(nn.Module):
         x = self.featuremaps(x)
         if return_featuremaps:
             return x
-        v = self.global_avgpool(x)
-        v = v.view(v.size(0), -1)
-        if self.fc is not None:
-            v = self.fc(v)
+        x = self.global_avgpool(x)
+        x = x.view(x.size(0), -1)
+        v = self.fc(x)
         if not self.training:
             return v
         y = self.classifier(v)
         if 'softmax' in self.loss:
+            if self.training and self.attrs_num:
+                return y, self.attr_classifier(self.attr_fc(x))
             return y
         elif self.loss == 'triplet':
             return y, v
