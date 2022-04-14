@@ -16,7 +16,7 @@ class Dolphins(ImageDataset):
     train_dir = "images_train_cropped"
     test_dir = "images_train_cropped"
 
-    def __init__(self, root='', **kwargs):
+    def __init__(self, root='', seed="3976814873", ind_count="3", **kwargs):
         self.root = osp.abspath(osp.expanduser(root))
         self.dataset_dir = root
         self.train_dir = osp.join(
@@ -29,10 +29,10 @@ class Dolphins(ImageDataset):
             self.dataset_dir, self.train_dir
         )
 
-        seed = '3976814873'
-        self.train_ann_file = osp.join(self.dataset_dir, f"train_{seed}.csv")
-        self.test_ann_file = osp.join(self.dataset_dir, f"test_{seed}.csv")
-        self.gallery_ann_file = osp.join(self.dataset_dir, f"gallery_{seed}.csv")
+        seed_str = f'{seed}_{ind_count}'
+        self.train_ann_file = osp.join(self.dataset_dir, f"train_{seed_str}.csv")
+        self.test_ann_file = osp.join(self.dataset_dir, f"test_{seed_str}.csv")
+        self.gallery_ann_file = osp.join(self.dataset_dir, f"gallery_{seed_str}.csv")
 
         required_files = [
             self.dataset_dir,
