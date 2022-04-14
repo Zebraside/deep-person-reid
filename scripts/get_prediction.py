@@ -43,12 +43,15 @@ class PredictionDataset(torch.utils.data.Dataset):
         return img, target
 
 
-def get_embeddings(dataloader, extractor, normalize=False):
+def get_embeddings(dataloader, extractor, normalize=False, flip=False):
     embeddings = []
     targets = []
     for batch in tqdm(dataloader):
         imgs, inds = batch
         outputs = extractor(imgs)
+        if flip:
+            outputs_flip = extractor(torch.flip(imgs, dims=[3]))
+            outputs = 0.5 * (outputs + outputs_flip)
         if normalize:
             outputs = F.normalize(outputs, dim=1)
         embeddings.extend(outputs.cpu().numpy())
@@ -69,6 +72,7 @@ def collect_predictions(query_img_dir,
                         dist_metric='cosine',
                         use_avg_embed=False,
                         normalize=False,
+                        flip=False,
                         rerank=False):
     test_dataset = PredictionDataset(query_img_dir,
                                      query_imgs,
@@ -79,7 +83,7 @@ def collect_predictions(query_img_dir,
                                             shuffle=False,
                                             num_workers=4)
 
-    test_embeddings, test_targets = get_embeddings(test_loader, extractor, normalize)
+    test_embeddings, test_targets = get_embeddings(test_loader, extractor, normalize, flip)
     print("Test mbeddings shape", test_embeddings.shape)
     print("Test targets shape", test_targets.shape)
 
@@ -94,7 +98,7 @@ def collect_predictions(query_img_dir,
                                                 num_workers=4)
 
 
-    gallery_embeddings, gallery_targets = get_embeddings(gallery_loader, extractor, normalize)
+    gallery_embeddings, gallery_targets = get_embeddings(gallery_loader, extractor, normalize, flip)
     print("Gallery embeddings shape", gallery_embeddings.shape)
     print("Gallery targets shape", gallery_targets.shape)
 
@@ -170,8 +174,9 @@ def main():
     use_all = False
     use_avg_embed = True
     find_thr = False
-    dist_metric='cosine'
-    normalize=False
+    dist_metric = 'cosine'
+    normalize = False
+    flip = False
 
     img_size = (cfg.data.height, cfg.data.width)
     _, transform_te = build_transforms(
@@ -208,7 +213,7 @@ def main():
                                                                      transform_te,
                                                                      dist_metric=dist_metric,
                                                                      use_avg_embed=use_avg_embed,
-                                                                     normalize=normalize,
+                                                                     normalize=normalize, flip=flip,
                                                                      rerank=rerank)
 
         top1 = 0
@@ -258,12 +263,13 @@ def main():
                                                                       transform_te,
                                                                       dist_metric=dist_metric,
                                                                       use_avg_embed=use_avg_embed,
-                                                                      normalize=normalize,
+                                                                      normalize=normalize, flip=flip,
                                                                       rerank=rerank)
 
         print("Save result")
         distmap_sorted = np.argsort(distmat, axis=1).astype(int)
         distsort = np.sort(distmat, axis=1)[:, :5]
+        t = 100.
         print(distsort.shape)
         print(np.min(distsort, axis=0))
         print(np.max(distsort, axis=0))
@@ -275,8 +281,15 @@ def main():
 
             writer.writerow(["image","predictions"])
             for i in range(len(predict_targets)):
-                candidates = train_targets[distmap_sorted[i]][:4]
-                candidates = np.append(candidates, 'new_individual')
+                candidates = []
+                if distsort[i][0] > t:
+                    print('new', distsort[i][0])
+                    candidates.append('new_individual')
+                    candidates.extend(train_targets[distmap_sorted[i]][:4])
+                else:
+                    candidates = train_targets[distmap_sorted[i]][:4]
+                    candidates = np.append(candidates, 'new_individual')
+
                 writer.writerow([predict_targets[i], " ".join(candidates)])
 
 if __name__ == "__main__":
