@@ -8,19 +8,19 @@ data:
   type: 'image'
   sources: ['dolphins']
   targets: ['dolphins']
-  height: 128
-  width: 384
+  height: 256
+  width: 768
   combineall: False
   transforms: ['random_flip']
-  save_dir: 'log/custom_osnet_x075_dolphins_ams_attrs_regular_wide'
+  save_dir: 'log/custom_osnet_x075_dolphins_sm_attrs_regular_wide_highres'
 
 sampler:
   train_sampler: 'RandomIdentitySampler'
 
 loss:
-  name: 'am_softmax'
+  name: 'softmax'
   softmax:
-    label_smooth: False
+    label_smooth: True
 
 train:
   optim: 'amsgrad'
