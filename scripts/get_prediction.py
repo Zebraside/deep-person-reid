@@ -158,6 +158,10 @@ def main():
         '--config', type=str, default='./configs/dolphins_vs_regular_wide_softmax_step.yaml')
     parser.add_argument(
         '--weights', type=str, default='./log/custom_osnet_x1_0_dolphins_ams_256_regular_wide/model/model.pth.tar-145')
+    parser.add_argument(
+        '--seed', type=str, default=None)
+    parser.add_argument(
+        '--ind_count', type=str, default=None)
     args = parser.parse_args()
 
     train_img_dir = osp.join(args.root, 'images_train_cropped')
@@ -167,10 +171,17 @@ def main():
     cfg.use_gpu = torch.cuda.is_available()
     cfg.merge_from_file(args.config)
 
-    seed = "3976814873"
+    seed = cfg.data.seed
+    if args.seed:
+        seed = args.seed
+
+    ind_count = cfg.data.ind_count
+    if args.ind_count:
+        ind_count = args.ind_count
+
     predict = True
     rerank = False
-    test = False
+    test = True
     use_all = False
     use_avg_embed = True
     find_thr = False
@@ -178,6 +189,7 @@ def main():
     normalize = False
     flip = False
 
+    print(f"Tesing seed is {seed}. Images pre individ is {ind_count}")
     img_size = (cfg.data.height, cfg.data.width)
     _, transform_te = build_transforms(
             cfg.data.height,
@@ -190,16 +202,22 @@ def main():
                                  image_size=img_size)
     if find_thr:
         print("Start calculating new id thr")
-        test_data = pd.read_csv(osp.join(args.root, f"all_{seed}.csv"))
+        test_data = pd.read_csv(osp.join(args.root, f"all_{seed}_{ind_count}.csv"))
         find_cutoff_thr(train_img_dir, test_data['image'].to_list(), test_data['individual_id'].to_list(),
                         extractor, transform_te, dist_metric=dist_metric)
     if test:
-        test_data = pd.read_csv(osp.join(args.root, f"test_{seed}.csv"))
-        gallery_data = pd.read_csv(osp.join(args.root, f"gallery_{seed}.csv"))
+        test_data = pd.read_csv(osp.join(args.root, f"test_{seed}_{ind_count}.csv"))
+        gallery_data = pd.read_csv(osp.join(args.root, f"gallery_{seed}_{ind_count}.csv"))
 
         # Uncomment this to get train data metrics. May be inaccurate due to cases when all samples are in test_data
         if use_all:
-            all_data = pd.read_csv(f"/home/kmolchanov/reps/whales/data/all_{seed}.csv")
+            print("Using all available data from:", f"train.csv")
+            all_data = pd.read_csv(osp.join(args.root, f"train.csv"))
+            old_data_size = all_data['image'].size
+            all_data = all_data[all_data['image'].apply( lambda x : os.path.exists(f"{train_img_dir}/{x}"))]
+            new_data_size = all_data['image'].size
+            if (new_data_size != old_data_size):
+                print(f"Warning! Missing images count {old_data_size - new_data_size}")
             test_data = all_data.sample(frac=0.2)
             gallery_data = all_data.drop(test_data.index)
 
@@ -250,7 +268,13 @@ def main():
         print("Top10", top10 / count)
 
     if predict:
-        all_data = pd.read_csv(osp.join(args.root, f"all_{seed}.csv"))
+        all_data = pd.read_csv(osp.join(args.root, f"train.csv"))
+        old_data_size = all_data['image'].size
+        all_data = all_data[all_data['image'].apply( lambda x : os.path.exists(f"{train_img_dir}/{x}"))]
+        new_data_size = all_data['image'].size
+        if (new_data_size != old_data_size):
+            print(f"Warning! Missing images count {old_data_size - new_data_size}")
+
         prediction_data = pd.read_csv(osp.join(args.root, f"test.csv"))
 
         distmat, predict_targets, train_targets = collect_predictions(prediction_img_dir,

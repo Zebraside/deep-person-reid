@@ -32,6 +32,8 @@ def get_default_config():
     cfg.data.norm_std = [0.229, 0.224, 0.225] # default is imagenet std
     cfg.data.save_dir = 'log' # path to save log
     cfg.data.load_train_targets = False # load training set from target dataset
+    cfg.data.seed = 3976814873 # strange behaviour. If we pass this in config it is parsed as int.
+    cfg.data.ind_count = 3
 
     # specific datasets
     cfg.market1501 = CN()
@@ -120,6 +122,8 @@ def get_default_config():
 def imagedata_kwargs(cfg):
     return {
         'root': cfg.data.root,
+        'seed': cfg.data.seed,
+        'ind_count': cfg.data.ind_count,
         'sources': cfg.data.sources,
         'targets': cfg.data.targets,
         'height': cfg.data.height,
