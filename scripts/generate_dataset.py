@@ -2,10 +2,12 @@ import pandas as pd
 import numpy as np
 import random
 import os
+import sys
 
-TRAIN_FILE_PATH = "/home/kmolchanov/reps/whales/data/train.csv"
-TRAIN_IMG_PATH = "/home/kmolchanov/reps/whales/data/images_train_cropped"
-OUT_PATH = "/home/kmolchanov/reps/whales/data/"
+ROOT = sys.argv[1] if len(sys.argv) > 1 else "/home/kmolchanov/reps/whales/data"
+TRAIN_FILE_PATH = os.path.join(ROOT, "train.csv")
+TRAIN_IMG_PATH = os.path.join(ROOT, "images_train_cropped")
+OUT_PATH = ROOT
 MIN_IMG_THRES = 3
 TRAIN_FRAC = 0.80
 QUERY_FRAC = 0.25
