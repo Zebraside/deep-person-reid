@@ -7,6 +7,7 @@ import torchvision.transforms as T
 import numpy as np
 import torch
 import pandas as pd
+import pickle
 from sklearn.metrics import pairwise_distances
 from torchreid.utils import FeatureExtractor
 from torchreid import metrics
@@ -73,7 +74,8 @@ def collect_predictions(query_img_dir,
                         use_avg_embed=False,
                         normalize=False,
                         flip=False,
-                        rerank=False):
+                        rerank=False,
+                        save_dir=''):
     test_dataset = PredictionDataset(query_img_dir,
                                      query_imgs,
                                      query_targets,
@@ -115,6 +117,15 @@ def collect_predictions(query_img_dir,
 
         print("Gallery embeddings shape", gallery_embeddings.shape)
         print("Gallery targets shape", gallery_targets.shape)
+
+    if save_dir:
+        if not osp.exists(save_dir):
+            os.makedirs(save_dir)
+        np.save(osp.join(save_dir, 'test_embeddings'), test_embeddings)
+        np.save(osp.join(save_dir, 'gallery_embeddings'), gallery_embeddings)
+        with open(osp.join(save_dir, 'targets'), 'wb') as db_file:
+            pickle.dump({'test_targets': test_targets,
+                         'gallery_targets': gallery_targets}, db_file)
 
     distmat = pairwise_distances(test_embeddings, gallery_embeddings, metric=dist_metric)
     if rerank:
@@ -162,6 +173,8 @@ def main():
         '--seed', type=str, default=None)
     parser.add_argument(
         '--ind_count', type=str, default=None)
+    parser.add_argument(
+        '--save_dir', type=str, default='')
     args = parser.parse_args()
 
     train_img_dir = osp.join(args.root, 'images_train_cropped')
@@ -288,7 +301,7 @@ def main():
                                                                       dist_metric=dist_metric,
                                                                       use_avg_embed=use_avg_embed,
                                                                       normalize=normalize, flip=flip,
-                                                                      rerank=rerank)
+                                                                      rerank=rerank, save_dir=args.save_dir)
 
         print("Save result")
         distmap_sorted = np.argsort(distmat, axis=1).astype(int)
