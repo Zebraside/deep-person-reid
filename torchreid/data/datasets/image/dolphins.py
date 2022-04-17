@@ -29,6 +29,8 @@ class Dolphins(ImageDataset):
             self.dataset_dir, self.train_dir
         )
 
+        print("SEED:", seed)
+        print("IND COUNT", ind_count)
         seed_str = f'{seed}_{ind_count}'
         self.train_ann_file = osp.join(self.dataset_dir, f"train_{seed_str}.csv")
         self.test_ann_file = osp.join(self.dataset_dir, f"test_{seed_str}.csv")
