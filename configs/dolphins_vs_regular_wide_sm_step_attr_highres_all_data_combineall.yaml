@@ -1,0 +1,45 @@
+model:
+  name: 'osnet_x1_0'
+  pretrained: True
+  feature_dim: 512
+  attrs_num: 26
+  resume: /home/kmolchanov/reps/whales/deep-person-reid/log/custom_osnet_dolphins_sm_attrs_regular_wide_highres_all_data_combineall/model/model.pth.tar-15
+
+data:
+  type: 'image'
+  sources: ['dolphins']
+  targets: ['dolphins']
+  height: 256
+  width: 768
+  combineall: True
+  transforms: ['random_flip']
+  save_dir: 'log/custom_osnet_dolphins_sm_attrs_regular_wide_highres_all_data_combineall'
+  workers: 21
+  ind_count: 1
+
+sampler:
+  train_sampler: 'RandomIdentitySampler'
+
+loss:
+  name: 'softmax'
+  softmax:
+    label_smooth: True
+
+train:
+  optim: 'amsgrad'
+  lr: 0.0015
+  max_epoch: 140
+  batch_size: 64
+  fixbase_epoch: 0
+  open_layers: ['classifier', 'fc', 'attr_classifier', 'attr_fc']
+  lr_scheduler: 'multi_step'
+  stepsize: [60, 100]
+  start_epoch: 15
+
+test:
+  batch_size: 300
+  dist_metric: 'euclidean'
+  normalize_feature: False
+  evaluate: False
+  eval_freq: 5
+  rerank: False
