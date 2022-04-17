@@ -44,17 +44,24 @@ class PredictionDataset(torch.utils.data.Dataset):
         return img, target
 
 
-def get_embeddings(dataloader, extractor, normalize=False, flip=False):
-    embeddings = []
-    targets = []
-    for batch in tqdm(dataloader):
-        imgs, inds = batch
+def get_embeddings(dataloader, extractors, normalize=False, flip=False):
+    def extract(extractor, flip, normalize):
         outputs = extractor(imgs)
         if flip:
             outputs_flip = extractor(torch.flip(imgs, dims=[3]))
             outputs = 0.5 * (outputs + outputs_flip)
         if normalize:
             outputs = F.normalize(outputs, dim=1)
+
+        return outputs
+
+    embeddings = []
+    targets = []
+    for batch in tqdm(dataloader):
+        imgs, inds = batch
+        outputs = extract(extractors[0], flip, normalize)
+        for ext in extractors[1:]:
+            outputs = torch.cat([outputs, extract(ext, flip, normalize)], dim=1)
         embeddings.extend(outputs.cpu().numpy())
         targets.extend(inds)
     embeddings = np.array(embeddings)
@@ -68,7 +75,7 @@ def collect_predictions(query_img_dir,
                         gallery_img_dir,
                         gallery_imgs,
                         gallery_targets,
-                        extractor,
+                        extractors,
                         transform,
                         dist_metric='cosine',
                         use_avg_embed=False,
@@ -85,7 +92,7 @@ def collect_predictions(query_img_dir,
                                             shuffle=False,
                                             num_workers=4)
 
-    test_embeddings, test_targets = get_embeddings(test_loader, extractor, normalize, flip)
+    test_embeddings, test_targets = get_embeddings(test_loader, extractors, normalize, flip)
     print("Test mbeddings shape", test_embeddings.shape)
     print("Test targets shape", test_targets.shape)
 
@@ -100,7 +107,7 @@ def collect_predictions(query_img_dir,
                                                 num_workers=4)
 
 
-    gallery_embeddings, gallery_targets = get_embeddings(gallery_loader, extractor, normalize, flip)
+    gallery_embeddings, gallery_targets = get_embeddings(gallery_loader, extractors, normalize, flip)
     print("Gallery embeddings shape", gallery_embeddings.shape)
     print("Gallery targets shape", gallery_targets.shape)
 
@@ -137,10 +144,10 @@ def collect_predictions(query_img_dir,
     return distmat, test_targets, gallery_targets
 
 
-def find_cutoff_thr(img_dir, imgs, targets, extractor, transform, dist_metric='cosine'):
+def find_cutoff_thr(img_dir, imgs, targets, extractors, transform, dist_metric='cosine'):
     dataset = PredictionDataset(img_dir, imgs, targets, transform)
     loader = torch.utils.data.DataLoader(dataset, batch_size=128, shuffle=False, num_workers=4)
-    embeddings, targets = get_embeddings(loader, extractor)
+    embeddings, targets = get_embeddings(loader, extractors)
 
     unique_targets = set(targets)
 
@@ -159,6 +166,13 @@ def find_cutoff_thr(img_dir, imgs, targets, extractor, transform, dist_metric='c
     #     print("Other", target, np.mean(other_embeddigs),  np.median(other_embeddigs), np.min(other_embeddigs), np.max(other_embeddigs))
 
 
+def load_cfg(path):
+    cfg = get_default_config()
+    cfg.use_gpu = torch.cuda.is_available()
+    cfg.merge_from_file(path)
+    return cfg
+
+
 def main():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
@@ -166,9 +180,9 @@ def main():
     parser.add_argument(
         '--root', type=str, default='/home/kmolchanov/reps/whales/data/')
     parser.add_argument(
-        '--config', type=str, default='./configs/dolphins_vs_regular_wide_softmax_step.yaml')
+        '--configs', type=str, default=['./configs/dolphins_vs_regular_wide_softmax_step.yaml'], nargs='+')
     parser.add_argument(
-        '--weights', type=str, default='./log/custom_osnet_x1_0_dolphins_ams_256_regular_wide/model/model.pth.tar-145')
+        '--weights', type=str, default=['./log/custom_osnet_x1_0_dolphins_ams_256_regular_wide/model/model.pth.tar-145'], nargs='+')
     parser.add_argument(
         '--seed', type=str, default=None)
     parser.add_argument(
@@ -180,9 +194,7 @@ def main():
     train_img_dir = osp.join(args.root, 'images_train_cropped')
     prediction_img_dir = osp.join(args.root, 'images_test_cropped')
 
-    cfg = get_default_config()
-    cfg.use_gpu = torch.cuda.is_available()
-    cfg.merge_from_file(args.config)
+    cfg = load_cfg(args.configs[0])
 
     seed = cfg.data.seed
     if args.seed:
@@ -192,7 +204,7 @@ def main():
     if args.ind_count:
         ind_count = args.ind_count
 
-    predict = True
+    predict = False
     rerank = False
     test = True
     use_all = False
@@ -211,13 +223,14 @@ def main():
             norm_mean=cfg.data.norm_mean,
             norm_std=cfg.data.norm_std
         )
-    extractor = FeatureExtractor(model_kwargs=model_kwargs(cfg), device=f'cuda', model_path=args.weights,
-                                 image_size=img_size)
+    assert len(args.weights) == len(args.configs)
+    extractors = [FeatureExtractor(model_kwargs=model_kwargs(load_cfg(cfg_path)), device=f'cuda', model_path=weights,
+                                 image_size=img_size) for (cfg_path, weights) in zip(args.configs, args.weights)]
     if find_thr:
         print("Start calculating new id thr")
         test_data = pd.read_csv(osp.join(args.root, f"all_{seed}_{ind_count}.csv"))
         find_cutoff_thr(train_img_dir, test_data['image'].to_list(), test_data['individual_id'].to_list(),
-                        extractor, transform_te, dist_metric=dist_metric)
+                        extractors, transform_te, dist_metric=dist_metric)
     if test:
         test_data = pd.read_csv(osp.join(args.root, f"test_{seed}_{ind_count}.csv"))
         gallery_data = pd.read_csv(osp.join(args.root, f"gallery_{seed}_{ind_count}.csv"))
@@ -240,7 +253,7 @@ def main():
                                                                      train_img_dir,
                                                                      gallery_data['image'].to_list(),
                                                                      gallery_data['individual_id'].to_list(),
-                                                                     extractor,
+                                                                     extractors,
                                                                      transform_te,
                                                                      dist_metric=dist_metric,
                                                                      use_avg_embed=use_avg_embed,
@@ -296,7 +309,7 @@ def main():
                                                                       train_img_dir,
                                                                       all_data['image'].to_list(),
                                                                       all_data['individual_id'].to_list(),
-                                                                      extractor,
+                                                                      extractors,
                                                                       transform_te,
                                                                       dist_metric=dist_metric,
                                                                       use_avg_embed=use_avg_embed,
